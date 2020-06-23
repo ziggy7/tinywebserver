@@ -2,6 +2,7 @@
 #define LST_TIMER
 
 #include <time.h>
+#include "../log/log.h"
 
 #define BUFFER_SIZE 64
 class util_timer;
@@ -122,7 +123,8 @@ public:
         {
             return;
         }
-        printf( "timer tick\n" );
+        LOG_INFO("%s", "timer tick");
+        Log::get_instance()->flush();
         time_t cur = time( NULL );
         util_timer* tmp = head;
         while( tmp )

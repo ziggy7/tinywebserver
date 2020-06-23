@@ -1,5 +1,6 @@
 #include "http_conn.h"
 #include <mysql/mysql.h>
+#include "../log/log.h"
 #include <fstream>
 #include <map>
 
@@ -37,7 +38,7 @@ void http_conn::initmysql_result(connection_pool *connPool)
     //在user表中检索username，password数据
     if(mysql_query(mysql, "SELECT username,password FROM user"))
     {
-        printf("select error\n");
+        LOG_ERROR("SELECT error:%s\n", mysql_error(mysql));
     }
     //从表中检索完整的结果集
     MYSQL_RES *result = mysql_store_result(mysql);
@@ -325,7 +326,8 @@ http_conn::HTTP_CODE http_conn::parse_headers( char* text )
     }
     else
     {
-        printf( "oop! unknow header %s\n", text );
+        LOG_INFO("oop!unknow header: %s", text);
+        Log::get_instance()->flush();
     }
 
     return NO_REQUEST;
@@ -356,6 +358,8 @@ http_conn::HTTP_CODE http_conn::process_read()
         text = get_line();
         m_start_line = m_checked_idx;
         //printf( "got 1 http line: %s\n", text );
+        LOG_INFO("%s", text);
+        Log::get_instance()->flush();
 
         switch ( m_check_state )
         {
@@ -626,6 +630,8 @@ bool http_conn::add_response( const char* format, ... )
     }
     m_write_idx += len;
     va_end( arg_list );
+    LOG_INFO("request:%s", m_write_buf);
+    Log::get_instance()->flush();
     return true;
 }
 

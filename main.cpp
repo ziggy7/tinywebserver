@@ -14,12 +14,17 @@
 #include "threadpool/threadpool.h"
 #include "http_conn/http_conn.h"
 #include "timer/lst_timer.h"
+#include "./log/log.h"
+
 #define MAX_FD 65536
 #define MAX_EVENT_NUMBER 10000
 //时间间隔
 #define TIMESLOT 5
 
 #define SYNSQL
+
+#define SYNLOG //同步写日志
+//#define ASYNLOG       //异步写日志
 
 //http_conn.cpp中定义，改变链接属性
 extern int addfd( int epollfd, int fd, bool one_shot );
@@ -69,6 +74,8 @@ void cb_func(client_data *user_data)
     assert(user_data);
     close(user_data->sockfd);
     http_conn::m_user_count--;
+    LOG_INFO("close fd %d", user_data->sockfd);
+    Log::get_instance()->flush();
 }
 void show_error( int connfd, const char* info )
 {
@@ -80,6 +87,14 @@ void show_error( int connfd, const char* info )
 
 int main( int argc, char* argv[] )
 {
+    //初始化日志模型
+    #ifdef ASYNLOG
+    Log::get_instance()->init("ServerLog", 2000, 800000, 8); //异步日志模型
+#endif
+
+#ifdef SYNLOG
+    Log::get_instance()->init("ServerLog", 2000, 800000, 0); //同步日志模型
+#endif
     if( argc <= 2 )
     {
         printf( "usage: %s ip_address port_number\n", basename( argv[0] ) );
@@ -161,7 +176,7 @@ int main( int argc, char* argv[] )
         int number = epoll_wait( epollfd, events, MAX_EVENT_NUMBER, -1 );
         if ( ( number < 0 ) && ( errno != EINTR ) )
         {
-            printf( "epoll failure\n" );
+            LOG_ERROR("%s", "epoll failure");
             break;
         }
 
@@ -175,12 +190,13 @@ int main( int argc, char* argv[] )
                 int connfd = accept( listenfd, ( struct sockaddr* )&client_address, &client_addrlength );
                 if ( connfd < 0 )
                 {
-                    printf( "errno is: %d\n", errno );
+                    LOG_ERROR("%s:errno is:%d", "accept error", errno);
                     continue;
                 }
                 if( http_conn::m_user_count >= MAX_FD )
                 {
                     show_error( connfd, "Internal server busy" );
+                    LOG_ERROR("%s", "Internal server busy");
                     continue;
                 }
                 
@@ -241,12 +257,16 @@ int main( int argc, char* argv[] )
                 util_timer* timer = users_timer[sockfd].timer;
                 if( users[sockfd].read() )
                 {
+                    LOG_INFO("deal with the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
+                    Log::get_instance()->flush();
                     pool->append( users + sockfd );
                     //延长定时器并调整
                     if(timer)
                     {
                         time_t cur = time(NULL);
                         time_t expire = cur + 3 * TIMESLOT;
+                        LOG_INFO("%s", "adjust timer once");
+                        Log::get_instance()->flush();
                         timer_lst.adjust_timer(timer);
                     }
                 }
@@ -264,10 +284,14 @@ int main( int argc, char* argv[] )
                 util_timer *timer = users_timer[sockfd].timer;
                 if( users[sockfd].write() )
                 {
+                    LOG_INFO("send data to the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
+                    Log::get_instance()->flush();
                     if (timer)
                     {
                         time_t cur = time(NULL);
                         timer->expire = cur + 3 * TIMESLOT;
+                        LOG_INFO("%s", "adjust timer once");
+                        Log::get_instance()->flush();
                         timer_lst.adjust_timer(timer);
                     }
                 }
