@@ -150,9 +150,11 @@ public:
     {
 
         m_mutex.lock();
+        //用while
         while (m_size <= 0)
         {
             //m_mutex是私有变量，用get访问
+            //wait函数出错返回false，成功返回true
             if (!m_cond.wait(m_mutex.get()))
             {
                 m_mutex.unlock();
