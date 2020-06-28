@@ -21,6 +21,7 @@ Log::~Log()
     }
 }
 //异步需要设置阻塞队列的长度，同步不需要设置
+//打开日志文件，获得文件指针
 bool Log::init(const char *file_name, int log_buf_size, int split_lines, int max_queue_size)
 {
     //如果设置了max_queue_size,则设置为异步
@@ -50,9 +51,11 @@ bool Log::init(const char *file_name, int log_buf_size, int split_lines, int max
     {
         snprintf(log_full_name, 255, "%d_%02d_%02d_%s", my_tm.tm_year + 1900, my_tm.tm_mon + 1, my_tm.tm_mday, file_name);
     }
+    //目录名+时间+自定义名
     else
     {
         strcpy(log_name, p + 1);
+        //p是/，前是目录，后是文件名，filename是目录开头
         strncpy(dir_name, file_name, p - file_name + 1);
         snprintf(log_full_name, 255, "%s%d_%02d_%02d_%s", dir_name, my_tm.tm_year + 1900, my_tm.tm_mon + 1, my_tm.tm_mday, log_name);
     }
@@ -68,6 +71,7 @@ bool Log::init(const char *file_name, int log_buf_size, int split_lines, int max
     return true;
 }
 
+//将一行日志写入字符串并根据同/异步处理
 void Log::write_log(int level, const char *format, ...)
 {
     struct timeval now = {0, 0};
@@ -98,22 +102,26 @@ void Log::write_log(int level, const char *format, ...)
     m_mutex.lock();
     m_count++;
 
-    if (m_today != my_tm.tm_mday || m_count % m_split_lines == 0) //everyday log
+    //超过行数或者日期不对
+    if (m_today != my_tm.tm_mday || m_count % m_split_lines == 0) 
     {
-        
+        //创建新日志
         char new_log[256] = {0};
+        //关闭旧日志
         fflush(m_fp);
         fclose(m_fp);
         char tail[16] = {0};
        
         snprintf(tail, 16, "%d_%02d_%02d_", my_tm.tm_year + 1900, my_tm.tm_mon + 1, my_tm.tm_mday);
        
+        //日期不对
         if (m_today != my_tm.tm_mday)
         {
             snprintf(new_log, 255, "%s%s%s", dir_name, tail, log_name);
             m_today = my_tm.tm_mday;
             m_count = 0;
         }
+        //超过行数
         else
         {
             snprintf(new_log, 255, "%s%s%s.%lld", dir_name, tail, log_name, m_count / m_split_lines);
@@ -133,10 +141,12 @@ void Log::write_log(int level, const char *format, ...)
     int n = snprintf(m_buf, 48, "%d-%02d-%02d %02d:%02d:%02d.%06ld %s ",
                      my_tm.tm_year + 1900, my_tm.tm_mon + 1, my_tm.tm_mday,
                      my_tm.tm_hour, my_tm.tm_min, my_tm.tm_sec, now.tv_usec, s);
-    
+    //写入具体内容
     int m = vsnprintf(m_buf + n, m_log_buf_size - 1, format, valst);
     m_buf[n + m] = '\n';
     m_buf[n + m + 1] = '\0';
+
+    //获取日志字符串
     log_str = m_buf;
 
     m_mutex.unlock();
