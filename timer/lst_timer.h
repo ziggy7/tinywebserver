@@ -52,6 +52,7 @@ public:
             head = tail = timer;
             return; 
         }
+        //如果小于头结点，插入作为新的头节点
         if( timer->expire < head->expire )
         {
             timer->next = head;
@@ -59,6 +60,7 @@ public:
             head = timer;
             return;
         }
+        //不是头结点就插到后面
         add_timer( timer, head );
     }
     void adjust_timer( util_timer* timer )
@@ -67,11 +69,13 @@ public:
         {
             return;
         }
+        //如果后面没有节点或者后面节点更大，不用调整
         util_timer* tmp = timer->next;
         if( !tmp || ( timer->expire < tmp->expire ) )
         {
             return;
         }
+        //否则，如果为头节点，取出重新插入
         if( timer == head )
         {
             head = head->next;
@@ -79,6 +83,7 @@ public:
             timer->next = NULL;
             add_timer( timer, head );
         }
+        //不是头结点也取出重新插入
         else
         {
             timer->prev->next = timer->next;
@@ -86,12 +91,14 @@ public:
             add_timer( timer, timer->next );
         }
     }
+
     void del_timer( util_timer* timer )
     {
         if( !timer )
         {
             return;
         }
+        //只有一个节点
         if( ( timer == head ) && ( timer == tail ) )
         {
             delete timer;
@@ -117,6 +124,7 @@ public:
         timer->next->prev = timer->prev;
         delete timer;
     }
+    //定时调用函数，处理过期定时器
     void tick()
     {
         if( !head )
@@ -129,6 +137,7 @@ public:
         util_timer* tmp = head;
         while( tmp )
         {
+            //遇到未过期的break
             if( cur < tmp->expire )
             {
                 break;
@@ -162,6 +171,7 @@ private:
             prev = tmp;
             tmp = tmp->next;
         }
+        //插到尾部
         if( !tmp )
         {
             prev->next = timer;
